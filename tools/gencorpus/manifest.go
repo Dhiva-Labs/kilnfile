@@ -113,7 +113,7 @@ func generate(out string, large bool) error {
 		return err
 	}
 	c := &corpus{root: out, large: large}
-	for _, g := range []func(*corpus) error{genImages, genStructured} {
+	for _, g := range []func(*corpus) error{genImages, genOOXML, genStructured} {
 		if err := g(c); err != nil {
 			return err
 		}
