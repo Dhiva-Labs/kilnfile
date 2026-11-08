@@ -1,0 +1,3 @@
+[submodule "third_party/safe-bindings"]
+	path = third_party/safe-bindings
+	url = https://github.com/google/safe-bindings.git
