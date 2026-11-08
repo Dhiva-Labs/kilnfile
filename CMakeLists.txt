@@ -13,11 +13,20 @@ enable_testing()
 
 include(FetchContent)
 
+# Pins shared with tools/bootstrap.sh and CI live in toolchain.env.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/toolchain.env" _kiln_corrosion
+  REGEX "^CORROSION_COMMIT=")
+string(REPLACE "CORROSION_COMMIT=" "" KILN_CORROSION_COMMIT "${_kiln_corrosion}")
+if(NOT KILN_CORROSION_COMMIT)
+  message(FATAL_ERROR "toolchain.env has no CORROSION_COMMIT")
+endif()
+
 FetchContent_Declare(
   Corrosion
-  # Same fork safe-bindings uses, until corrosion-rs/corrosion#666 is merged.
+  # Same fork safe-bindings uses, until corrosion-rs/corrosion#666 is merged,
+  # but pinned to a commit rather than following master.
   GIT_REPOSITORY https://github.com/thunderseethe/corrosion
-  GIT_TAG master
+  GIT_TAG "${KILN_CORROSION_COMMIT}"
 )
 FetchContent_MakeAvailable(Corrosion)
 
