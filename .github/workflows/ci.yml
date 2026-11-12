@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          submodules: true
+          persist-credentials: false
+
+      # toolchain.env pins SAFE_BINDINGS_COMMIT, CRUBIT_COMMIT and RUST_NIGHTLY,
+      # the way safe-bindings' ci/resolve_toolchain.sh resolves them, but fixed.
+      - name: Load pinned toolchain
+        run: |
+          set -euo pipefail
+          source toolchain.env
+          {
+            echo "SAFE_BINDINGS_COMMIT=${SAFE_BINDINGS_COMMIT}"
+            echo "CRUBIT_COMMIT=${CRUBIT_COMMIT}"
+            echo "RUST_NIGHTLY=${RUST_NIGHTLY}"
+            # Overrides any rust-toolchain.toml with the pinned nightly.
+            echo "RUSTUP_TOOLCHAIN=${RUST_NIGHTLY}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Check the submodule is at the pinned commit
+        run: |
+          actual="$(git -C third_party/safe-bindings rev-parse HEAD)"
+          if [[ "${actual}" != "${SAFE_BINDINGS_COMMIT}" ]]; then
+            echo "::error::safe-bindings is at ${actual}, toolchain.env pins ${SAFE_BINDINGS_COMMIT}"
+            exit 1
+          fi
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
+        with:
+          toolchain: ${{ env.RUST_NIGHTLY }}
+          components: rust-src, rustc-dev, llvm-tools-preview
+          # Crubit has some compiler warnings; the default "-D warnings" would
+          # fail the build (b/530101873).
+          rustflags: ""
+
+      - name: Fetch Crubit
+        run: |
+          git init -q "${RUNNER_TEMP}/crubit"
+          git -C "${RUNNER_TEMP}/crubit" fetch -q --depth 1 https://github.com/google/crubit.git "${CRUBIT_COMMIT}"
+          git -C "${RUNNER_TEMP}/crubit" checkout -q FETCH_HEAD
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DFETCHCONTENT_SOURCE_DIR_CRUBIT="${RUNNER_TEMP}/crubit"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run spike tests
+        run: ctest --test-dir build --output-on-failure

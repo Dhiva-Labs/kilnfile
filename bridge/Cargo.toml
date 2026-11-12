@@ -1,0 +1,22 @@
+[package]
+name = "kilnfile_bridge"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+
+# Standalone manifest. In the real build, tools/vendor_bindings.sh folds this
+# crate into the umbrella crate `kilnfile_rs` (together with the renamed
+# safe-bindings crates) so the whole Rust side is one staticlib.
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+# Crubit's cpp_api_from_rust writes one Cargo.toml entry per transitive crate
+# name and fails with "duplicate key" when two versions of a crate are present.
+# png 0.18 needs miniz_oxide 0.8 while flate2 >= 1.1.10 (pulled in by zip) needs
+# 0.9. Same workaround as safe-bindings' pixel_bridge (b/554658975); remove it
+# once png moves to miniz_oxide 0.9 or Crubit handles multiple versions.
+flate2 = ">=1.1, <1.1.10"
